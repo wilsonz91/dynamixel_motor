@@ -50,6 +50,7 @@ from dynamixel_driver.dynamixel_const import *
 from dynamixel_controllers.joint_controller import JointController
 
 from dynamixel_msgs.msg import JointState
+from dynamixel_msgs.msg import PositionVelocity
 
 class JointPositionController(JointController):
     def __init__(self, dxl_io, controller_namespace, port_namespace):
@@ -184,4 +185,17 @@ class JointPositionController(JointController):
         angle = msg.data
         mcv = (self.motor_id, self.pos_rad_to_raw(angle))
         self.dxl_io.set_multi_position([mcv])
+
+    def spd_rad_to_raw(self, spd_rad):
+        if spd_rad < -self.joint_max_speed: spd_rad = -self.joint_max_speed
+        elif spd_rad > self.joint_max_speed: spd_rad = self.joint_max_speed
+        self.last_commanded_torque = spd_rad
+        return int(round(spd_rad / self.VELOCITY_PER_TICK))
+
+    def process_position_speed(self, msg):
+        angle = msg.position
+        speed = msg.velocity
+
+        mcv = (self.motor_id, self.pos_rad_to_raw(angle), self.spd_rad_to_raw(speed))
+        self.dxl_io.set_multi_position_and_speed([mcv])
 

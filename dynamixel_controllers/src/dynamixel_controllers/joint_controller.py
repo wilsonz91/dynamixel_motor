@@ -57,6 +57,7 @@ from dynamixel_controllers.srv import SetTorqueLimit
 from std_msgs.msg import Float64
 from dynamixel_msgs.msg import MotorStateList
 from dynamixel_msgs.msg import JointState
+from dynamixel_msgs.msg import PositionVelocity
 
 class JointController:
     def __init__(self, dxl_io, controller_namespace, port_namespace):
@@ -109,6 +110,8 @@ class JointController:
         self.command_sub = rospy.Subscriber(self.controller_namespace + '/command', Float64, self.process_command)
         self.motor_states_sub = rospy.Subscriber('motor_states/%s' % self.port_namespace, MotorStateList, self.process_motor_states)
 
+        self.position_speed_sub = rospy.Subscriber(self.controller_namespace + '/command_pv', PositionVelocity, self.process_position_speed)
+
     def stop(self):
         self.running = False
         self.joint_state_pub.unregister()
@@ -117,6 +120,8 @@ class JointController:
         self.speed_service.shutdown('normal shutdown')
         self.torque_service.shutdown('normal shutdown')
         self.compliance_slope_service.shutdown('normal shutdown')
+
+        self.position_speed_sub.unregister()
 
     def set_torque_enable(self, torque_enable):
         raise NotImplementedError
@@ -164,6 +169,9 @@ class JointController:
         raise NotImplementedError
 
     def process_command(self, msg):
+        raise NotImplementedError
+
+    def process_position_speed(self, msg):
         raise NotImplementedError
 
     def rad_to_raw(self, angle, initial_position_raw, flipped, encoder_ticks_per_radian):
