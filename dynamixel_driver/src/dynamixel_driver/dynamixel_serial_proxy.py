@@ -97,6 +97,7 @@ class SerialProxy():
         self.motor_states_pub = rospy.Publisher('motor_states/%s' % self.port_namespace, MotorStateList, queue_size=1)
         self.diagnostics_pub = rospy.Publisher('/diagnostics', DiagnosticArray, queue_size=1)
 
+        # ROS JointState type
         self.joint_states_pub = rospy.Publisher('joint_states', JointState, queue_size=1)
 
     def connect(self):
@@ -234,19 +235,7 @@ class SerialProxy():
                 try:
                     state = self.dxl_io.get_feedback(motor_id)
                     if state:
-                        # new:
-                        joint_state.motor_ids.append(state['id'])
-                        joint_state.motor_temps.append(state['temperature'])
-
-                        joint_state.goal_pos.append( (state['goal'] - 2048) * self.RADIANS_PER_ENCODER_TICK)
-                        joint_state.position.append( (state['position'] - 2048) * self.RADIANS_PER_ENCODER_TICK)
-                        joint_state.velocity.append( state['speed'] * self.VELOCITY_PER_TICK )
-                        joint_state.effort.append(0.)
-                        joint_state.goal_effort.append(0.)
-                       
-                        joint_state.header.stamp = rospy.Time.from_sec(state['timestamp'])
-
-
+                        # ROS JointState
                         sm_jointState.name.append(str(state['id']))
                         sm_jointState.position.append( (state['position'] - 2048) * self.RADIANS_PER_ENCODER_TICK)
                         sm_jointState.velocity.append( state['speed'] * self.VELOCITY_PER_TICK )
@@ -276,11 +265,11 @@ class SerialProxy():
 
             # old:    
             if motor_states:
-                msl = MotorStateList()
-                msl.motor_states = motor_states
-                self.motor_states_pub.publish(msl)
+                # msl = MotorStateList()
+                # msl.motor_states = motor_states
+                # self.motor_states_pub.publish(msl)
                 
-                self.current_state = msl
+                # self.current_state = msl
                 
                 # calculate actual update rate
                 current_time = rospy.Time.now()
