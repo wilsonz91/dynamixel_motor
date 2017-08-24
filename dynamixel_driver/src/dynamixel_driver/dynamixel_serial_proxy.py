@@ -63,6 +63,9 @@ from diagnostic_msgs.msg import KeyValue
 from dynamixel_msgs.msg import MotorState
 from dynamixel_msgs.msg import MotorStateList
 
+from dynamixel_msgs.msg import DxlJointState
+from sensor_msgs.msg import JointState
+
 class SerialProxy():
     def __init__(self,
                  port_name='/dev/ttyUSB0',
@@ -93,6 +96,8 @@ class SerialProxy():
         
         self.motor_states_pub = rospy.Publisher('motor_states/%s' % self.port_namespace, MotorStateList, queue_size=1)
         self.diagnostics_pub = rospy.Publisher('/diagnostics', DiagnosticArray, queue_size=1)
+
+        self.joint_states_pub = rospy.Publisher('joint_states', JointState, queue_size=1)
 
     def connect(self):
         try:
@@ -154,6 +159,9 @@ class SerialProxy():
         self.motor_static_info[motor_id]['min_voltage'] = voltages['min']
         self.motor_static_info[motor_id]['max_voltage'] = voltages['max']
 
+        self.RADIANS_PER_ENCODER_TICK = range_radians / encoder_resolution
+        self.VELOCITY_PER_TICK = rpm_per_tick * RPM_TO_RADSEC
+        
     def __find_motors(self):
         rospy.loginfo('%s: Pinging motor IDs %d through %d...' % (self.port_namespace, self.min_motor_id, self.max_motor_id))
         self.motors = []
@@ -219,10 +227,33 @@ class SerialProxy():
         while not rospy.is_shutdown() and self.running:
             # get current state of all motors and publish to motor_states topic
             motor_states = []
+            joint_state = DxlJointState()
+            sm_jointState = JointState()
+
             for motor_id in self.motors:
                 try:
                     state = self.dxl_io.get_feedback(motor_id)
                     if state:
+                        # new:
+                        joint_state.motor_ids.append(state['id'])
+                        joint_state.motor_temps.append(state['temperature'])
+
+                        joint_state.goal_pos.append( (state['goal'] - 2048) * self.RADIANS_PER_ENCODER_TICK)
+                        joint_state.position.append( (state['position'] - 2048) * self.RADIANS_PER_ENCODER_TICK)
+                        joint_state.velocity.append( state['speed'] * self.VELOCITY_PER_TICK )
+                        joint_state.effort.append(0.)
+                        joint_state.goal_effort.append(0.)
+                       
+                        joint_state.header.stamp = rospy.Time.from_sec(state['timestamp'])
+
+
+                        sm_jointState.name.append(str(state['id']))
+                        sm_jointState.position.append( (state['position'] - 2048) * self.RADIANS_PER_ENCODER_TICK)
+                        sm_jointState.velocity.append( state['speed'] * self.VELOCITY_PER_TICK )
+                        sm_jointState.effort.append(0.)
+                        sm_jointState.header.stamp = rospy.Time.from_sec(state['timestamp'])
+
+                        # old:
                         motor_states.append(MotorState(**state))
                         if dynamixel_io.exception: raise dynamixel_io.exception
                 except dynamixel_io.FatalErrorCodeError, fece:
@@ -240,7 +271,10 @@ class SerialProxy():
                     if ose.errno != errno.EAGAIN:
                         rospy.logfatal(errno.errorcode[ose.errno])
                         rospy.signal_shutdown(errno.errorcode[ose.errno])
-                        
+            
+            self.joint_states_pub.publish(sm_jointState)
+
+            # old:    
             if motor_states:
                 msl = MotorStateList()
                 msl.motor_states = motor_states
